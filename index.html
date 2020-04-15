@@ -9,6 +9,14 @@
     <canvas>
 
     </canvas>
+    <br>
+    <p>Iterations:<span>0</span></p>
+    <textarea></textarea>
+    <br><button onclick="rctl()">Run controller</button>
+    <br><button onclick="rst()">Reset to best</button>
+    <div>
+
+    </div>
     <script>
 
         function createPolygonShape(vertices) {
@@ -48,7 +56,7 @@
         var body = world.CreateBody(bodyDef);
         var fixtureDef = new b2FixtureDef();
         var edgeShape = new b2EdgeShape();
-        edgeShape.Set(new b2Vec2(-20, -12), new b2Vec2(2000, -12));
+        edgeShape.Set(new b2Vec2(-20000, -12), new b2Vec2(2000, -12));
         fixtureDef.set_shape(edgeShape);
         fixtureDef.get_filter().set_categoryBits(0xff);
         body.CreateFixture(fixtureDef);
@@ -69,12 +77,19 @@
         fixtureDef.get_filter().set_categoryBits(0x01);
         fixtureDef.get_filter().set_maskBits(0x10);
         fixtureDef.set_shape(polygonShape);
-        let basePosition = new Box2D.b2Vec2(0, 0);
+        let basePositions = [
+            new Box2D.b2Vec2(40, 0),
+            new Box2D.b2Vec2(40, 0),
+            new Box2D.b2Vec2(42, 12),
+            new Box2D.b2Vec2(42, 12),
+            new Box2D.b2Vec2(47, 24),
+        ]
         let dynamicBodies = [];
         for (let i = 0; i < 5; i++) {
+            if (i == 4) fixtureDef.set_density(5);
             dynamicBodies.push(world.CreateBody(bodyDef));
             dynamicBodies[i].CreateFixture(fixtureDef);
-            dynamicBodies[i].SetTransform(basePosition, -Math.PI / 2);
+            dynamicBodies[i].SetTransform(basePositions[i], -Math.PI / 2);
         }
         //join all parts together
         var jointDef2 = new b2RevoluteJointDef();
@@ -122,42 +137,203 @@
         var revoluteJoint2 = Box2D.castObject(world.CreateJoint(jointDef2), b2WheelJoint);
 
         let tt = 0;
+        //add feet
+        var verts = [];
+        verts.push(new Box2D.b2Vec2(0, 0));
+        verts.push(new Box2D.b2Vec2(2, 0));
+        verts.push(new Box2D.b2Vec2(2, 7));
+        verts.push(new Box2D.b2Vec2(0, 7));
+        var polygonShape = createPolygonShape(verts);
+        var fixtureDef = new b2FixtureDef();
+        fixtureDef.set_density(2.5);
+        fixtureDef.set_friction(1);
+        fixtureDef.get_filter().set_categoryBits(0x01);
+        fixtureDef.get_filter().set_maskBits(0x10);
+        fixtureDef.set_shape(polygonShape);
+        let basePosition2 = new Box2D.b2Vec2(40, -10);
+        for (let i = 0; i < 2; i++) {
+            dynamicBodies.push(world.CreateBody(bodyDef));
+            dynamicBodies[5 + i].CreateFixture(fixtureDef);
+            dynamicBodies[5 + i].SetTransform(basePosition2, 0);
+        }
+
+
+        var jointDef2 = new b2RevoluteJointDef();
+        jointDef2.set_bodyA(dynamicBodies[5]);
+        jointDef2.set_bodyB(dynamicBodies[1]);
+        jointDef2.set_localAnchorA(new b2Vec2(0, 0));
+        jointDef2.set_localAnchorB(new b2Vec2(12, 0));
+        jointDef2.set_collideConnected(false);
+        jointDef2.set_enableLimit(true);
+        jointDef2.set_lowerAngle(-Math.PI / 2 - 0.1);
+        jointDef2.set_upperAngle(-Math.PI / 2 + 0.1);
+        var revoluteJoint2 = Box2D.castObject(world.CreateJoint(jointDef2), b2WheelJoint);
+
+        var jointDef2 = new b2RevoluteJointDef();
+        jointDef2.set_bodyA(dynamicBodies[6]);
+        jointDef2.set_bodyB(dynamicBodies[3]);
+        jointDef2.set_localAnchorA(new b2Vec2(0, 0));
+        jointDef2.set_localAnchorB(new b2Vec2(12, 0));
+        jointDef2.set_collideConnected(false);
+        jointDef2.set_enableLimit(true);
+        jointDef2.set_lowerAngle(-Math.PI / 2 - 0.1);
+        jointDef2.set_upperAngle(-Math.PI / 2 + 0.1);
+        var revoluteJoint2 = Box2D.castObject(world.CreateJoint(jointDef2), b2WheelJoint);
+
         // sim
-        function update(){
+
+        function makeRandomController() {
+            let ctrls = [];
+            while (Math.random() > 0.1) {
+                ctrls.push({ a: Math.random() * 15000 + 5000, r: Math.random() * 10, p: Math.random() * Math.PI * 2 });
+            }
+            return ctrls;
+        }
+
+        function mutateController(ctr, its) {
+            for (let i = 0; i < its; i++) {
+                let option = Math.floor(Math.random() * 10);
+                let channel = Math.floor(Math.random() * ctr.length);
+                switch (option) {
+                    case 0:
+                        //add a control
+                        ctr[channel].push({ a: Math.random() * 15000 + 5000, r: Math.random() * 10, p: Math.random() * Math.PI });
+                        break;
+                    case 1:
+                        ctr[channel].splice(Math.floor(Math.random() * ctr[channel].length), 1);
+                        break;
+                    case 2:
+                    case 3:
+                    case 4:
+                        if (ctr[channel].length) ctr[channel][Math.floor(Math.random() * ctr[channel].length)].a *= Math.random() + 0.5;
+                        break;
+                    case 5:
+                    case 6:
+                    case 7:
+                        if (ctr[channel].length) ctr[channel][Math.floor(Math.random() * ctr[channel].length)].p += Math.random() - 0.5;
+                        break;
+                    case 8:
+                    case 9:
+                        if (ctr[channel].length) ctr[channel][Math.floor(Math.random() * ctr[channel].length)].r *= Math.random() + 0.5;
+                        break;
+                }
+            }
+            return ctr;
+        }
+
+        function makeRandomControllers() {
+            let controllers = [];
+            for (let i = 0; i < 4; i++)controllers.push(makeRandomController());
+            controllers.push([]);
+            return controllers;
+        }
+
+        let controllers = makeRandomControllers();
+        function evalAtT(controller, t) {
+            return controller.reduce((p, i) => p + i.a * Math.sin(t / i.r + i.p), 0);
+        }
+        let bestControllers = [];
+        let bestScore = -100000;
+
+
+        function cleanController(ctr) {
+            for (let i = 0; i < ctr.length; i++) {
+                for (let j = 0; j < ctr[i].length; j++) {
+                    for (let u in ctr[i][j]) {
+                        ctr[i][j][u] = Math.floor(ctr[i][j][u] * 1000) / 1000;
+                    }
+                }
+            }
+        }
+        cleanController(controllers);
+
+        function resetDummy() {
+            for (let i = 0; i < 5; i++) {
+                dynamicBodies[i].SetTransform(basePositions[i], -Math.PI / 2);
+            }
+            for (let i = 0; i < 2; i++) {
+                dynamicBodies[5 + i].SetTransform(basePosition2, 0);
+            }
+            tt = 0;
+        }
+        resetDummy();
+        function update() {
             ctx.fillStyle = "white";
             ctx.fillRect(0, 0, 500, 500);
             world.Step(0.1, 8, 3);
-            for (b of dynamicBodies) {
+            for (let i = 0; i < dynamicBodies.length; i++) {
+                let b = dynamicBodies[i];
                 let cx = b.GetPosition().get_x() + 20;
                 let cy = b.GetPosition().get_y() + 20;
                 let angle = b.GetAngle();
                 ctx.beginPath();
                 let xx = [10, 10, 0, 0];
                 let yy = [0, 5, 5, 0];
+                if (i > 4) {
+                    xx = [7, 7, 0, 0];
+                    yy = [2, 2, 0, 0];
+                }
                 ctx.moveTo(cx + xx[3] * Math.cos(angle) - yy[3] * Math.sin(angle), 500 - (cy + xx[3] * Math.sin(angle) + yy[3] * Math.cos(angle)));
                 for (let i = 0; i < 4; i++) {
                     ctx.lineTo(cx + xx[i] * Math.cos(angle) - yy[i] * Math.sin(angle), 500 - (cy + xx[i] * Math.sin(angle) + yy[i] * Math.cos(angle)));
                 }
                 ctx.stroke();
                 ctx.closePath();
+                if (i < 5) b.ApplyTorque(evalAtT(controllers[i], tt));
             }
-            dynamicBodies[0].ApplyTorque(-20000 * Math.sin(tt / 10));
-            dynamicBodies[2].ApplyTorque(-20000 * Math.sin((tt + 5) / 10));
-            dynamicBodies[1].ApplyTorque(-20000 * Math.sin(tt / 10));
-            dynamicBodies[3].ApplyTorque(-20000 * Math.sin((tt + 5) / 10));
-            //dynamicBodies[0].ApplyTorque(-100000 * Math.sin(tt / 1000));
             tt++;
-            if (tt == 1000) {
-                for (let i = 0; i < 5; i++) {
-                    dynamicBodies[i].SetTransform(basePosition, -Math.PI / 2);
+            if (tt == 200) {
+
+                if (dynamicBodies[4].GetPosition().get_x() > bestScore) {
+                    bestScore = dynamicBodies[4].GetPosition().get_x();
+                    bestControllers = controllers;
+                    let p = document.createElement("p");
+                    p.innerText = JSON.stringify(controllers);
+                    p.innerText += ":Performance: " + dynamicBodies[4].GetPosition().get_x();
+                    document.querySelector("div").insertBefore(p, document.querySelector("div").children[0]);
+
                 }
-                tt=0;
+
+                resetDummy();
+
+                controllers = JSON.parse(JSON.stringify(bestControllers));
+                controllers = mutateController(controllers, 1000 / bestScore);
+                if (Math.random() > bestScore / 1000) {
+                    controllers = makeRandomControllers();
+                }
+                cleanController(controllers);
+                document.querySelector("span").innerText=Number(document.querySelector("span").innerText)+1;
             }
+            //keep a best version, apply mutations to it until it is better.
             requestAnimationFrame(update);
         }
 
         update();
+        function rctl() {
+            let ctt = document.querySelector("textarea").value;
+            let tct;
+            try {
+                tct = JSON.parse(ctt);
+                controllers = tct;
+                resetDummy();
 
+                document.querySelector("textarea").style.background = "green";
+            } catch (e) {
+                document.querySelector("textarea").style.background = "red";
+            }
+        }
+
+        function rst() {
+            if (bestControllers.length) {
+                controllers = bestControllers;
+            } else {
+                controllers = makeRandomControllers();
+
+            }
+            resetDummy();
+
+            document.querySelector("textarea").style.background = "white";
+        }
 
 
     </script>
